@@ -16,6 +16,7 @@ contract Mayor {
         uint32 quorum;
         uint32 envelopes_casted;
         uint32 envelopes_opened;
+        bool winner_checked;
     }
     
     event NewMayor(address _candidate);
@@ -35,8 +36,12 @@ contract Mayor {
         _;
     }
     
-    // The outcome of the confirmation can be computed as soon as all the casted envelopes have been opened
+    // The outcome of the confirmation can be computed as soon as:
+    // if the winner hasn't been checked
+    // OR
+    // all the casted envelopes have been opened
     modifier canCheckOutcome() {
+        require(voting_condition.winner_checked, "The winner has already been checked");
         require(voting_condition.envelopes_opened == voting_condition.quorum, "Cannot check the winner, need to open all the sent envelopes");
         _;
     }
@@ -63,10 +68,10 @@ contract Mayor {
     /// @param _candidate (address) The address of the mayor candidate
     /// @param _escrow (address) The address of the escrow account
     /// @param _quorum (address) The number of voters required to finalize the confirmation
-    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) {
+    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) public {
         candidate = _candidate;
         escrow = _escrow;
-        voting_condition = Conditions({quorum: _quorum, envelopes_casted: 0, envelopes_opened: 0});
+        voting_condition = Conditions({quorum: _quorum, envelopes_casted: 0, envelopes_opened: 0, winner_checked: false});
     }
 
 
@@ -89,29 +94,72 @@ contract Mayor {
     /// @dev Need to recompute the hash to validate the envelope previously casted
     function open_envelope(uint _sigil, bool _doblon) canOpen public payable {
         
-        // TODO Complete this function
+        // Check if already open
+        require(souls[msg.sender].soul != 0x0, "The sender has already opened the envelope");
 
-            // emit EnvelopeOpen() event at the end
-
+        // Check if there is a casted vote
         require(envelopes[msg.sender] != 0x0, "The sender has not casted any votes");
-        
-        bytes32 _casted_envelope = envelopes[msg.sender];
-        bytes32 _sent_envelope = 0x0;
-        // ...
 
+        bytes32 _casted_envelope = envelopes[msg.sender];
+        
+        // compute sent envelop with _sigil, _doblon and soul as crypto in msg.value 
+        bytes32 _sent_envelope = compute_envelope(_sigil, _doblon, msg.value);
+        
+        // check if the casted envelop is equals to the sent enveloper
         require(_casted_envelope == _sent_envelope, "Sent envelope does not correspond to the one casted");
 
-        // ...
+        // add a Refund struct to souls mapping
+        souls[msg.sender] = Refund(msg.value, _doblon);
+
+        // add this address in msg.sender to voters array
+        voters.push(payable(msg.sender));
+
+        if (_doblon) // true: confirm mayor, so increase yaySoul by msg.value wei
+            yaySoul += msg.value;
+        else // false: kick out mayor, so increase naySoul by msg.value wei
+            naySoul += msg.value;
+
+        voting_condition.envelopes_opened++;
+        emit EnvelopeOpen(msg.sender, msg.value, _doblon);
     }
     
-    
+    // @TODO: capire come redistribuire i soldi
     /// @notice Either confirm or kick out the candidate. Refund the electors who voted for the losing outcome
+     /// @notice Either confirm or kick out the candidate. Refund the electors who voted for the losing outcome
     function mayor_or_sayonara() canCheckOutcome public {
+        
+        if (yaySoul > naySoul) { // the mayor gets confirmed if the yay votes are strictly greater (>) than the nay votes
 
-        // TODO Complete this function
+            // the mayor is confirmed
+            uint fundForMayor = 0;
+            for (uint i = 0; i < voters.length; i++) {
+                address payable userAddr = payable(voters[i]);
+                Refund memory user = souls[userAddr];
+                if (user.doblon == true) {
+                    fundForMayor += user.soul; // count soul from users who confirmed mayor
+                } else {
+                    userAddr.transfer(user.soul);  // returns soul to users who have not confirmed
+                }
+            }
+            candidate.transfer(fundForMayor); // transfer fund to candidate
+            emit NewMayor(candidate); // event if the candidate is confirmed as mayor
+
+        } else {
             
-            // emit the NewMayor() event if the candidate is confirmed as mayor
-            // emit the Sayonara() event if the candidate is NOT confirmed as mayor        
+            // the mayor is not confirmed
+            uint fundForEscrow = 0;
+            for (uint i = 0; i < voters.length; i++) {
+                address payable userAddr = payable(voters[i]);
+                Refund memory user = souls[userAddr];
+                if (user.doblon == false) {
+                    fundForEscrow += user.soul; // count soul from users have not confirmed
+                } else {
+                    userAddr.transfer(user.soul);  // returns soul to users who have confirmed
+                }
+            }
+            escrow.transfer(fundForEscrow); // event if the candidate is confirmed as mayor
+            emit Sayonara(escrow); // event if the candidate is NOT confirmed as mayor  
+        }    
     }
  
  
