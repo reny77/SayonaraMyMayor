@@ -41,7 +41,7 @@ contract Mayor {
     // OR
     // all the casted envelopes have been opened
     modifier canCheckOutcome() {
-        require(voting_condition.winner_checked, "The winner has already been checked");
+        require(voting_condition.winner_checked == false, "The winner has already been checked");
         require(voting_condition.envelopes_opened == voting_condition.quorum, "Cannot check the winner, need to open all the sent envelopes");
         _;
     }
@@ -63,6 +63,8 @@ contract Mayor {
     // Refund phase variables
     mapping(address => Refund) souls;
     address[] voters;
+
+    mapping(address => bool) alreadyOpenEnvelops;
 
     /// @notice The constructor only initializes internal variables
     /// @param _candidate (address) The address of the mayor candidate
@@ -95,7 +97,7 @@ contract Mayor {
     function open_envelope(uint _sigil, bool _doblon) canOpen public payable {
         
         // Check if already open
-        require(souls[msg.sender].soul != 0x0, "The sender has already opened the envelope");
+        require(alreadyOpenEnvelops[msg.sender] == false, "The sender has already opened the envelope");
 
         // Check if there is a casted vote
         require(envelopes[msg.sender] != 0x0, "The sender has not casted any votes");
@@ -120,6 +122,10 @@ contract Mayor {
             naySoul += msg.value;
 
         voting_condition.envelopes_opened++;
+
+        // add this sender to the already open
+        alreadyOpenEnvelops[msg.sender] = true;
+
         emit EnvelopeOpen(msg.sender, msg.value, _doblon);
     }
     
