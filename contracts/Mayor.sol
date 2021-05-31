@@ -9,7 +9,7 @@ contract Mayor {
     struct Refund {
         uint soul;
         bool doblon;
-        bool opened;
+        bool opened; // for remember if this vote has already been opened
     }
     
     // Data to manage the confirmation
@@ -17,7 +17,7 @@ contract Mayor {
         uint32 quorum;
         uint32 envelopes_casted;
         uint32 envelopes_opened;
-        bool winner_checked;
+        bool winner_checked; // for test if the winner has already been checked
     }
     
     event NewMayor(address _candidate);
@@ -69,7 +69,7 @@ contract Mayor {
     /// @param _candidate (address) The address of the mayor candidate
     /// @param _escrow (address) The address of the escrow account
     /// @param _quorum (address) The number of voters required to finalize the confirmation
-    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) {
+    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) public {
         candidate = _candidate;
         escrow = _escrow;
         voting_condition = Conditions({quorum: _quorum, envelopes_casted: 0, envelopes_opened: 0, winner_checked: false});
@@ -120,7 +120,7 @@ contract Mayor {
         else // false: kick out mayor, so increase naySoul by msg.value wei
             naySoul += msg.value;
 
-        voting_condition.envelopes_opened++;
+        voting_condition.envelopes_opened++; // count votes
 
         emit EnvelopeOpen(msg.sender, msg.value, _doblon);
     }
