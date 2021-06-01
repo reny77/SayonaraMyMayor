@@ -69,7 +69,7 @@ contract Mayor {
     /// @param _candidate (address) The address of the mayor candidate
     /// @param _escrow (address) The address of the escrow account
     /// @param _quorum (address) The number of voters required to finalize the confirmation
-    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) public {
+    constructor(address payable _candidate, address payable _escrow, uint32 _quorum) {
         candidate = _candidate;
         escrow = _escrow;
         voting_condition = Conditions({quorum: _quorum, envelopes_casted: 0, envelopes_opened: 0, winner_checked: false});
